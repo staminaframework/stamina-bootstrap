@@ -24,11 +24,9 @@ import org.osgi.service.log.LogService;
 import org.osgi.service.provisioning.ProvisioningService;
 import picocli.CommandLine;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
@@ -75,9 +73,46 @@ public class Main {
         logger.setDebug(opts.debug);
         logger.log(LogService.LOG_INFO, "Initializing");
 
+        // Generate an unique launcher id.
+        // This id may be used by a Bootstrap Admin instance to return
+        // a custom bootstrap package.
+        String launcherId = null;
+        boolean launchedIdUpdated = false;
+        final Path staminaUserDir = FileSystems.getDefault().getPath(System.getProperty("user.home")).resolve(".stamina");
+        final Path bootstrapDir = staminaUserDir.resolve("bootstrap");
+        try {
+            Files.createDirectories(bootstrapDir);
+        } catch (IOException e) {
+            logger.log(LogService.LOG_ERROR,
+                    "Error while creating bootstrap user configuration directory: " + bootstrapDir, e);
+            System.exit(1);
+            return;
+        }
+        final Path confFile = bootstrapDir.resolve("launcher.properties");
+        if (Files.exists(confFile)) {
+            final Properties launcherProps = new Properties();
+            try (final InputStream in = Files.newInputStream(confFile)) {
+                launcherProps.load(in);
+            } catch (IOException e) {
+                logger.log(LogService.LOG_WARNING,
+                        "Failed to load bootstrap user configuration: " + confFile, e);
+            }
+            launcherId = launcherProps.getProperty("launcher.uuid");
+        }
+        if (launcherId == null || launcherId.length() == 0) {
+            launcherId = UUID.randomUUID().toString();
+            try (final OutputStream out = Files.newOutputStream(confFile)) {
+                final Properties launcherProps = new Properties();
+                launcherProps.setProperty("launcher.uuid", launcherId);
+                launcherProps.store(out, "Bootstrap configuration");
+            } catch (IOException e) {
+                logger.log(LogService.LOG_WARNING,
+                        "Failed to update bootstrap user configuration: " + confFile, e);
+            }
+        }
+
         final Path homeDir = FileSystems.getDefault().getPath(System.getProperty("user.dir"));
         final Path cacheDir = homeDir.resolve("cache");
-        final Path runtimeDir = homeDir.resolve("runtime");
         if (opts.clean) {
             logger.log(LogService.LOG_INFO, "Cleaning cache");
             try {
@@ -123,6 +158,12 @@ public class Main {
             }
         });
 
+        // Set a default HTTP user agent.
+        final String httpUserAgent = "StaminaBootstrap/" + Version.VERSION
+                + " (" + System.getProperty("os.name") + "; " + System.getProperty("os.arch")
+                + "; " + System.getProperty("java.runtime.name") + "/" + System.getProperty("java.runtime.version")
+                + ")";
+
         // Download bootstrap package to local cache.
         final Path localBootstrapPackage = ctx.getDataFile("bootstrap.pkg").toPath();
         if (!Files.exists(localBootstrapPackage)) {
@@ -153,7 +194,12 @@ public class Main {
                 // Try to download bootstrap package with any of these URLs.
                 for (final URL u : urls) {
                     logger.log(LogService.LOG_INFO, "Using bootstrap package: " + u);
-                    try (final InputStream in = u.openStream()) {
+                    final URLConnection conn = u.openConnection();
+                    if ("http".equals(u.getProtocol()) || "https".equals(u.getProtocol())) {
+                        conn.setRequestProperty("User-Agent", httpUserAgent);
+                        conn.setRequestProperty("StaminaBootstrap-Id", launcherId);
+                    }
+                    try (final InputStream in = conn.getInputStream()) {
                         Files.copy(in, localBootstrapPackage);
                         // We were able to use this URL: we can stop here.
                         break;
