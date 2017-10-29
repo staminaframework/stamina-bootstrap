@@ -55,8 +55,6 @@ public class Main {
         public boolean clean;
         @CommandLine.Option(names = {"-d", "--debug"}, usageHelp = true, description = "Enable verbose debugging")
         public boolean debug;
-        @CommandLine.Option(names = {"-a", "--autorestart"}, usageHelp = true, description = "Automatically restart on error")
-        public boolean autoRestart;
     }
 
     public static void main(String[] args) {
@@ -171,9 +169,7 @@ public class Main {
             }
         }
 
-        try
-
-        {
+        try {
             logger.log(LogService.LOG_INFO, "Reading bootstrap package");
             final ProvisioningService ps = new BootstrapProvisioningService(localBootstrapPackage);
             ctx.registerService(ProvisioningService.class, ps, null);
@@ -194,20 +190,14 @@ public class Main {
                 final Bundle agent = ctx.installBundle("bootstrap:agent", new ByteArrayInputStream(agentContent));
                 agent.start();
             }
-        } catch (
-                IOException e)
-
-        {
+        } catch (IOException e) {
             logger.log(LogService.LOG_ERROR, "Error while reading bootstrap package", e);
             try {
                 Files.delete(localBootstrapPackage);
             } catch (IOException ignore) {
             }
             System.exit(1);
-        } catch (
-                BundleException e)
-
-        {
+        } catch (BundleException e) {
             logger.log(LogService.LOG_ERROR, "Error while installing bootstrap agent", e);
             System.exit(1);
         }
@@ -220,29 +210,18 @@ public class Main {
         };
         ctx.addFrameworkListener(fwkListener);
 
-        try
-
-        {
+        try {
             fwk.start();
-        } catch (
-                BundleException e)
-
-        {
+        } catch (BundleException e) {
             logger.log(LogService.LOG_ERROR, "Error while starting OSGi framework", e);
             System.exit(1);
         }
 
-        try
-
-        {
+        try {
             fwk.waitForStop(0);
-        } catch (
-                InterruptedException e)
-
-        {
+        } catch (InterruptedException e) {
             logger.log(LogService.LOG_INFO, "Shutting down");
         }
-
     }
 
     private static FrameworkFactory newFrameworkFactory() {
