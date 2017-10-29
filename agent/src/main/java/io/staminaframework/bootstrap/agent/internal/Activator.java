@@ -16,6 +16,8 @@
 
 package io.staminaframework.bootstrap.agent.internal;
 
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -24,15 +26,18 @@ import org.osgi.service.log.LogService;
 import org.osgi.service.provisioning.ProvisioningService;
 import org.osgi.util.tracker.ServiceTracker;
 
-import java.io.ByteArrayInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.Dictionary;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.jar.Manifest;
+import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
@@ -140,6 +145,7 @@ public class Activator implements BundleActivator {
         logService.log(LogService.LOG_DEBUG, "Extracting runtime");
         if ("zip".equals(type)) {
             try (final ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(provisioningEntry))) {
+                final byte[] buf = new byte[4096];
                 for (ZipEntry entry; (entry = zip.getNextEntry()) != null; ) {
                     final String entryNameTrimmed = entry.getName().substring(entry.getName().indexOf('/') + 1);
                     if (entryNameTrimmed.length() != 0 && !entryNameTrimmed.endsWith("/")) {
@@ -147,7 +153,6 @@ public class Activator implements BundleActivator {
                                 "Extracting file: " + entryNameTrimmed);
                         final Path outFile = runtimeDir.resolve(entryNameTrimmed);
                         Files.createDirectories(outFile.getParent());
-                        final byte[] buf = new byte[4096];
                         try (final OutputStream out = new FileOutputStream(outFile.toFile())) {
                             for (int bytesRead; (bytesRead = zip.read(buf)) != -1; ) {
                                 out.write(buf, 0, bytesRead);
@@ -158,8 +163,47 @@ public class Activator implements BundleActivator {
                 }
             }
         } else {
-            // TODO
-            throw new UnsupportedOperationException("Not implemented");
+            final Path tarFile = Files.createTempFile("stamina-runtime-", ".tar");
+            try {
+                try (final GZIPInputStream in = new GZIPInputStream(new ByteArrayInputStream(provisioningEntry))) {
+                    Files.copy(in, tarFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+                try (final TarArchiveInputStream in = new TarArchiveInputStream(new FileInputStream(tarFile.toFile()))) {
+                    final byte[] buf = new byte[4096];
+                    for (TarArchiveEntry te; (te = in.getNextTarEntry()) != null; ) {
+                        if (!te.isDirectory()) {
+                            final String name = te.getName().substring(te.getName().indexOf('/') + 1);
+                            logService.log(LogService.LOG_DEBUG,
+                                    "Extracting file: " + name);
+                            final Path outFile = runtimeDir.resolve(name);
+                            Files.createDirectories(outFile.getParent());
+                            try (final FileOutputStream out = new FileOutputStream(outFile.toFile())) {
+                                for (int bytesRead; (bytesRead = in.read(buf)) != -1; ) {
+                                    out.write(buf, 0, bytesRead);
+                                }
+                            }
+                        }
+                    }
+                    // Set execution permission on launcher scripts.
+                    final Set<PosixFilePermission> perms = new HashSet<>(2);
+                    perms.add(PosixFilePermission.OWNER_READ);
+                    perms.add(PosixFilePermission.OWNER_EXECUTE);
+                    perms.add(PosixFilePermission.GROUP_READ);
+                    perms.add(PosixFilePermission.GROUP_EXECUTE);
+                    final Path binDir = runtimeDir.resolve("bin");
+                    try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(binDir)) {
+                        for (final Iterator<Path> i = dirStream.iterator(); i.hasNext(); ) {
+                            final Path binFile = i.next();
+                            Files.setPosixFilePermissions(binFile, perms);
+                        }
+                    }
+                }
+            } finally {
+                try {
+                    Files.delete(tarFile);
+                } catch (IOException ignore) {
+                }
+            }
         }
 
         final Path addonsDir = runtimeDir.resolve("addons");
