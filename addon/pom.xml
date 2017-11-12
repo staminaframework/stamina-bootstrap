@@ -31,6 +31,11 @@
     <packaging>pom</packaging>
     <url>http://staminaframework.io/stamina-bootstrap</url>
 
+    <description>
+        Stamina Bootstrap simplifies deployment, by providing a custom generated
+        distribution which can be downloaded by clients.
+    </description>
+
     <dependencies>
         <dependency>
             <groupId>io.staminaframework.addons</groupId>
