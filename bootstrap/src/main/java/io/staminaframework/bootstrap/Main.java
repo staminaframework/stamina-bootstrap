@@ -45,6 +45,8 @@ public class Main {
     @CommandLine.Command(name = "io.staminaframework.bootstrap",
             description = "Bootstrap a Stamina Framework platform.")
     private static class Options {
+        @CommandLine.Option(names = {"-i", "--init"}, usageHelp = true, description = "Initialize platform from a configuration directory")
+        public File init;
         @CommandLine.Option(names = {"-f", "--from"}, usageHelp = true, description = "Set URL to bootstrap package")
         public String from;
         @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "Show command usage")
@@ -130,6 +132,16 @@ public class Main {
                 "org.osgi.service.log;version=1.3, " +
                         "org.osgi.service.provisioning;version=1.2");
         fwkConf.put(FelixConstants.LOG_LEVEL_PROP, "0");
+
+        if (opts.init != null) {
+            try {
+                fwkConf.put("stamina.bootstrap.init", opts.init.getCanonicalPath());
+            } catch (IOException e) {
+                logger.log(LogService.LOG_ERROR,
+                        "Failed to read init configuration directory: " + opts.init, e);
+                System.exit(1);
+            }
+        }
 
         try {
             final FrameworkFactory fwkFactory = newFrameworkFactory();

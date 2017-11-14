@@ -27,10 +27,8 @@ import org.osgi.service.provisioning.ProvisioningService;
 import org.osgi.util.tracker.ServiceTracker;
 
 import java.io.*;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.charset.Charset;
+import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Dictionary;
 import java.util.HashSet;
@@ -75,6 +73,7 @@ public class Activator implements BundleActivator {
         } else {
             logService.log(LogService.LOG_DEBUG, "No runtime found: installing new one");
             installRuntime(runtimeDir);
+            initConf(context, runtimeDir);
             logService.log(LogService.LOG_DEBUG, "Runtime successfully installed");
 
             // Mark runtime as installed.
@@ -259,6 +258,27 @@ public class Activator implements BundleActivator {
         }
         logService = null;
         provisioningService = null;
+    }
+
+    private void initConf(BundleContext context, Path runtimeDir) throws IOException {
+        final String initPath = context.getProperty("stamina.bootstrap.init");
+        if (initPath == null) {
+            return;
+        }
+
+        final Path initDir = FileSystems.getDefault().getPath(initPath);
+        logService.log(LogService.LOG_INFO,
+                "Using configuration directory: " + initDir);
+
+        final Path confDir = runtimeDir.resolve("etc");
+        final Path initConfFile = confDir.resolve("org.apache.felix.fileinstall-init.cfg");
+        try (final PrintWriter out = new PrintWriter(Files.newBufferedWriter(initConfFile, Charset.forName("UTF-8")))) {
+            out.println("# Generated file: DO NOT MODIFY IT!");
+            out.println("felix.fileinstall.dir=" + initDir.toString().replace("\\", "/"));
+            out.println("felix.fileinstall.filter=.*\\\\.(cfg|config)");
+            out.println("felix.fileinstall.poll=1000");
+            out.println("felix.fileinstall.log.level=3");
+        }
     }
 
     private static boolean isOsWindows() {
