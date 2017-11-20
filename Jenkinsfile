@@ -17,7 +17,6 @@ pipeline {
         stage("Verify") {
             steps {
                 withMaven(maven: 'M3') {
-                    sh "/bin/rm -rf ~/.m2/repository/io"
                     sh "mvn -Dmaven.install.skip=true integration-test"
                 }
             }

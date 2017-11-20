@@ -99,7 +99,7 @@
                                 <artifactItem>
                                     <groupId>io.staminaframework.runtime</groupId>
                                     <artifactId>io.staminaframework.runtime</artifactId>
-                                    <version>0.1.0-SNAPSHOT</version>
+                                    <version>0.1.0</version>
                                     <classifier>bin</classifier>
                                     <type>zip</type>
                                     <destFileName>stamina.runtime.zip</destFileName>
@@ -107,7 +107,7 @@
                                 <artifactItem>
                                     <groupId>io.staminaframework.runtime</groupId>
                                     <artifactId>io.staminaframework.runtime</artifactId>
-                                    <version>0.1.0-SNAPSHOT</version>
+                                    <version>0.1.0</version>
                                     <classifier>bin</classifier>
                                     <type>tar.gz</type>
                                     <destFileName>stamina.runtime.tar.gz</destFileName>
