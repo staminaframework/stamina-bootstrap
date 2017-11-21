@@ -230,6 +230,18 @@ public class Activator implements BundleActivator {
             logService.log(LogService.LOG_DEBUG, "Extracting addon: " + renamedAddonFile.getFileName());
             Files.move(addonFile, renamedAddonFile, StandardCopyOption.REPLACE_EXISTING);
         }
+
+        final byte[] overlayData = (byte[]) psInfo.get("stamina.runtime.overlay.zip");
+        if (overlayData != null) {
+            try (final ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(overlayData))) {
+                for (ZipEntry ze; (ze = zip.getNextEntry()) != null; ) {
+                    final Path f = runtimeDir.resolve(ze.getName());
+                    logService.log(LogService.LOG_DEBUG, "Applying runtime overlay: " + ze.getName());
+                    Files.createDirectories(f.getParent());
+                    Files.copy(zip, f, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 
     private <T> T lookupService(BundleContext context, Class<T> serviceClass) throws InterruptedException {

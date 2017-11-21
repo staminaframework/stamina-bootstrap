@@ -26,6 +26,9 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -41,10 +44,36 @@ class BootstrapPackageBuilder {
         this.bundleContext = bundleContext;
     }
 
-    public void build(Path bootstrapPackageFile, List<String> addonUrls) throws Exception {
-        try (final ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(bootstrapPackageFile))) {
-            final byte[] buffer = new byte[4096];
+    public void build(Path bootstrapPackageFile, Path overlay, List<String> addonUrls) throws Exception {
+        final byte[] buffer = new byte[4096];
 
+        Path overlayFile = null;
+        if (overlay != null) {
+            if (Files.isRegularFile(overlay)
+                    && (overlay.getFileName().endsWith(".zip") || overlay.getFileName().endsWith(".jar"))) {
+                overlayFile = overlay;
+            } else if (Files.isDirectory(overlay)) {
+                final Set<Path> filesToInclude;
+                try (final Stream<Path> p = Files.walk(overlay)) {
+                    filesToInclude = p.filter(Files::isRegularFile).collect(Collectors.toSet());
+                }
+                if (!filesToInclude.isEmpty()) {
+                    overlayFile = Files.createTempFile("stamina.runtime.overlay-", ".zip");
+                    overlayFile.toFile().deleteOnExit();
+                    try (final ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(overlayFile))) {
+                        for (final Path f : filesToInclude) {
+                            final String entryName = overlay.relativize(f).toString().replace('\\', '/');
+                            final ZipEntry ze = new ZipEntry(entryName);
+                            zip.putNextEntry(ze);
+                            copyResource(f, zip, buffer);
+                            zip.closeEntry();
+                        }
+                    }
+                }
+            }
+        }
+
+        try (final ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(bootstrapPackageFile))) {
             ZipEntry ze = new ZipEntry("stamina.bootstrap.agent.jar");
             zip.putNextEntry(ze);
             copyResource(getBootstrapPackageEntry("stamina.bootstrap.agent.jar"), zip, buffer);
@@ -65,6 +94,12 @@ class BootstrapPackageBuilder {
             copyResource(getBootstrapPackageEntry("stamina.runtime.tar.gz"), zip, buffer);
             zip.closeEntry();
 
+            if (overlayFile != null) {
+                ze = new ZipEntry("stamina.runtime.overlay.zip");
+                zip.putNextEntry(ze);
+                Files.copy(overlayFile, zip);
+            }
+
             int addonCounter = 0;
             for (final String addonUrl : addonUrls) {
                 final URL u = new URL(addonUrl);
@@ -82,6 +117,14 @@ class BootstrapPackageBuilder {
 
     private void copyResource(URL source, OutputStream target, byte[] buffer) throws IOException {
         try (final InputStream in = source.openStream()) {
+            for (int bytesRead; (bytesRead = in.read(buffer)) != -1; ) {
+                target.write(buffer, 0, bytesRead);
+            }
+        }
+    }
+
+    private void copyResource(Path file, OutputStream target, byte[] buffer) throws IOException {
+        try (final InputStream in = Files.newInputStream(file)) {
             for (int bytesRead; (bytesRead = in.read(buffer)) != -1; ) {
                 target.write(buffer, 0, bytesRead);
             }

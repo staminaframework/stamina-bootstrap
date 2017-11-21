@@ -22,11 +22,12 @@ import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
+import picocli.CommandLine;
 
+import java.io.File;
 import java.io.PrintStream;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -37,6 +38,21 @@ import java.util.List;
 @Component(service = Command.class,
         property = CommandConstants.COMMAND + "=bootstrap:build")
 public class BootstrapBuildCommand implements Command {
+    @CommandLine.Command(name = "bootstrap:build",
+            description = "Build a bootstrap package including addons.")
+    private static class Opts {
+        @CommandLine.Parameters(description = "Bootstrap destination file", paramLabel = "<bootstrap file>")
+        public File outputFile = new File("bootstrap.pkg");
+        @CommandLine.Option(description = "Addon URL to include", paramLabel = "<addon URL>",
+                names = {"-a", "--addon"})
+        public String[] addonUrls = new String[0];
+        @CommandLine.Option(paramLabel = "<overlay>", description = "Set overlay to apply (ZIP archive or directory)",
+                names = {"-o", "--overlay"})
+        public File overlayFile = new File("bootstrap.overlay.zip");
+        @CommandLine.Option(description = "Show command usage", names = {"-h", "--help"}, usageHelp = true)
+        public boolean showHelp = false;
+    }
+
     private BundleContext bundleContext;
 
     @Activate
@@ -51,28 +67,25 @@ public class BootstrapBuildCommand implements Command {
 
     @Override
     public void help(PrintStream out) {
-        out.println("Build a bootstrap package including addons.");
-        out.println("The generated package file can be deployed anywhere.");
-        out.println("Usage: bootstrap:build <destination file> [<addon URL>]*");
+        CommandLine.usage(new Opts(), out);
     }
 
     @Override
     public boolean execute(Context context) throws Exception {
-        if (context.arguments().length == 0) {
+        final Opts opts;
+        try {
+            opts = CommandLine.populateCommand(new Opts(), context.arguments());
+        } catch (CommandLine.PicocliException e) {
             help(context.out());
             return false;
         }
 
-        final String bootstrapPackagePath = context.arguments()[0];
-        final Path bootstrapPackageFile = FileSystems.getDefault().getPath(bootstrapPackagePath);
-
-        final List<String> addonUrls = new ArrayList<>(context.arguments().length - 1);
-        for (int i = 1; i < context.arguments().length; ++i) {
-            addonUrls.add(context.arguments()[i]);
-        }
+        final Path bootstrapPackageFile = opts.outputFile.toPath();
+        final List<String> addonUrls = Arrays.asList(opts.addonUrls);
 
         context.out().println("Generating bootstrap package: " + bootstrapPackageFile);
-        new BootstrapPackageBuilder(bundleContext).build(bootstrapPackageFile, addonUrls);
+        final Path overlay = opts.overlayFile == null ? null : opts.overlayFile.toPath();
+        new BootstrapPackageBuilder(bundleContext).build(bootstrapPackageFile, overlay, addonUrls);
 
         return false;
     }

@@ -16,12 +16,10 @@
 
 package io.staminaframework.bootstrap.admin.internal;
 
+import io.staminaframework.runtime.boot.CommandLine;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.*;
 import org.osgi.service.http.HttpContext;
 import org.osgi.service.http.HttpService;
 import org.osgi.service.http.NamespaceException;
@@ -56,6 +54,8 @@ public class BootstrapPackageManager {
 
     @Reference
     private LogService logService;
+    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
+    private CommandLine commandLine;
     private HttpService httpService;
     private List<String> addonUrls = Collections.emptyList();
     private BundleContext bundleContext;
@@ -94,13 +94,18 @@ public class BootstrapPackageManager {
 
     @Activate
     void activate(BundleContext bundleContext, Config config) {
+        if (commandLine != null) {
+            // Skip bootstrap package building since a command is being executed.
+            return;
+        }
+
         this.bundleContext = bundleContext;
 
         final Runnable bootstapTask = () -> {
             try {
                 logService.log(LogService.LOG_INFO, "Building bootstrap package with addons: " + addonUrls);
                 final Path bootstrapPkgFile = bundleContext.getDataFile("bootstrap.pkg").toPath();
-                new BootstrapPackageBuilder(bundleContext).build(bootstrapPkgFile, addonUrls);
+                new BootstrapPackageBuilder(bundleContext).build(bootstrapPkgFile, null, addonUrls);
 
                 exposeBootstrapPackage(bootstrapPkgFile);
             } catch (Exception e) {

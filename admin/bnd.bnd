@@ -1,3 +1,3 @@
 Import-Package: org.osgi.service.http;resolution:=optional, javax.servlet.http;resolution:=optional, *
-Private-Package: com.eclipsesource.json
+Private-Package: com.eclipsesource.json, picocli
 -include: ${project.basedir}/../bnd.bnd
