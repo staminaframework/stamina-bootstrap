@@ -39,7 +39,7 @@ import java.util.*;
  * @author Stamina Framework developers
  */
 public class Main {
-    private static final String DEFAULT_BOOTSTRAP_PACKAGE = "http://localhost:8080/bootstrap.pkg";
+    private static final String DEFAULT_BOOTSTRAP_PACKAGE = "http://repo.staminaframework.io/releases/bootstrap.pkg";
     private static Framework fwk;
 
     @CommandLine.Command(name = "io.staminaframework.bootstrap",
@@ -48,7 +48,7 @@ public class Main {
         @CommandLine.Option(names = {"-i", "--init"}, usageHelp = true, description = "Initialize platform from a configuration directory")
         public File init;
         @CommandLine.Option(names = {"-f", "--from"}, usageHelp = true, description = "Set URL to bootstrap package")
-        public String from;
+        public String from = DEFAULT_BOOTSTRAP_PACKAGE;
         @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "Show command usage")
         public boolean showHelp;
         @CommandLine.Option(names = {"-c", "--clean"}, usageHelp = true, description = "Start platform from scratch")
