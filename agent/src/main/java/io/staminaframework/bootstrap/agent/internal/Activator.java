@@ -30,10 +30,7 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.Dictionary;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 import java.util.jar.Manifest;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
@@ -73,7 +70,7 @@ public class Activator implements BundleActivator {
         } else {
             logService.log(LogService.LOG_DEBUG, "No runtime found: installing new one");
             installRuntime(runtimeDir);
-            initConf(context, runtimeDir);
+            initConf(provisioningService, runtimeDir);
             logService.log(LogService.LOG_DEBUG, "Runtime successfully installed");
 
             // Mark runtime as installed.
@@ -90,11 +87,22 @@ public class Activator implements BundleActivator {
             throw new RuntimeException("Runtime launcher not found");
         }
 
+        final List<String> runtimeCmd = new ArrayList<>(4);
+        runtimeCmd.add(launcherFile.toString());
+        final String runtimeArgsRaw = (String) provisioningService.getInformation().get("stamina.bootstrap.arguments.txt");
+        if (runtimeArgsRaw != null) {
+            final StringTokenizer tokens = new StringTokenizer(runtimeArgsRaw, "|");
+            while (tokens.hasMoreTokens()) {
+                runtimeCmd.add(tokens.nextToken());
+            }
+        }
+
         final Runnable procRunner = () -> {
             try {
                 for (boolean running = true; running; ) {
                     logService.log(LogService.LOG_INFO, "Starting runtime");
-                    proc = new ProcessBuilder(launcherFile.toString())
+                    logService.log(LogService.LOG_DEBUG, "Using command: " + runtimeCmd);
+                    proc = new ProcessBuilder(runtimeCmd)
                             .directory(runtimeDir.toFile())
                             .inheritIO()
                             .start();
@@ -272,8 +280,8 @@ public class Activator implements BundleActivator {
         provisioningService = null;
     }
 
-    private void initConf(BundleContext context, Path runtimeDir) throws IOException {
-        final String initPath = context.getProperty("stamina.bootstrap.init");
+    private void initConf(ProvisioningService ps, Path runtimeDir) throws IOException {
+        final String initPath = (String) ps.getInformation().get("stamina.bootstrap.init.txt");
         if (initPath == null) {
             return;
         }

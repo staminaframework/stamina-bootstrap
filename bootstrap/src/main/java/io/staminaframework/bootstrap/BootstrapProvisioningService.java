@@ -34,10 +34,12 @@ import java.util.zip.ZipInputStream;
 class BootstrapProvisioningService implements ProvisioningService {
     private final Path bootstrapPackage;
     private final Set<String> entries = new HashSet<>(4);
+    private final Map<String, String> properties;
     private String agentBundle;
 
-    public BootstrapProvisioningService(final Path bootstrapPackage) throws IOException {
+    public BootstrapProvisioningService(final Path bootstrapPackage, final Map<String, String> properties) throws IOException {
         this.bootstrapPackage = bootstrapPackage;
+        this.properties = properties;
 
         // Index bootstrap package entries.
         try (final ZipFile pkg = new ZipFile(bootstrapPackage.toFile())) {
@@ -64,30 +66,37 @@ class BootstrapProvisioningService implements ProvisioningService {
         return new Dictionary() {
             @Override
             public int size() {
-                return entries.size();
+                return entries.size() + properties.size();
             }
 
             @Override
             public boolean isEmpty() {
-                return entries.isEmpty();
+                return entries.isEmpty() && properties.isEmpty();
             }
 
             @Override
             public Enumeration keys() {
-                return Collections.enumeration(entries);
+                final Collection<Object> keys = new ArrayList<>(entries.size() + properties.size());
+                keys.addAll(entries);
+                keys.addAll(properties.keySet());
+                return Collections.enumeration(keys);
             }
 
             @Override
             public Enumeration elements() {
-                final Collection<byte[]> elements = new ArrayList<>(entries.size());
+                final Collection<Object> elements = new ArrayList<>(entries.size() + properties.size());
                 for (final String entry : entries) {
-                    elements.add((byte[]) get(entry));
+                    elements.add(get(entry));
                 }
+                elements.addAll(properties.values());
                 return Collections.enumeration(elements);
             }
 
             @Override
             public Object get(Object key) {
+                if (key.toString().endsWith(".txt")) {
+                    return properties.get(key);
+                }
                 if (PROVISIONING_START_BUNDLE.equals(key)) {
                     return agentBundle;
                 }

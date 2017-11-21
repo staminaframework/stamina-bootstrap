@@ -42,7 +42,7 @@ public class Main {
     private static final String DEFAULT_BOOTSTRAP_PACKAGE = "http://repo.staminaframework.io/releases/bootstrap.pkg";
     private static Framework fwk;
 
-    @CommandLine.Command(name = "io.staminaframework.bootstrap",
+    @CommandLine.Command(name = "io.staminaframework.bootstrap", showDefaultValues = true,
             description = "Bootstrap a Stamina Framework platform.")
     private static class Options {
         @CommandLine.Option(names = {"-i", "--init"}, usageHelp = true, description = "Initialize platform from a configuration directory")
@@ -55,6 +55,8 @@ public class Main {
         public boolean clean;
         @CommandLine.Option(names = {"-d", "--debug"}, usageHelp = true, description = "Enable verbose debugging")
         public boolean debug;
+        @CommandLine.Parameters(description = "Runtime arguments", paramLabel = "<arguments>")
+        public String[] arguments;
     }
 
     public static void main(String[] args) {
@@ -126,16 +128,21 @@ public class Main {
             }
         }
 
-        final Map<String, String> fwkConf = new HashMap<>(1);
+        final Map<String, String> fwkConf = new HashMap<>(3);
         fwkConf.put(Constants.FRAMEWORK_STORAGE, cacheDir.toString());
         fwkConf.put(Constants.FRAMEWORK_SYSTEMPACKAGES_EXTRA,
                 "org.osgi.service.log;version=1.3, " +
                         "org.osgi.service.provisioning;version=1.2");
         fwkConf.put(FelixConstants.LOG_LEVEL_PROP, "0");
 
+        final Map<String, String> provisioningProperties = new HashMap<>(2);
+        if (opts.arguments != null && opts.arguments.length != 0) {
+            final String argumentsStr = String.join("|", opts.arguments);
+            provisioningProperties.put("stamina.bootstrap.arguments.txt", argumentsStr);
+        }
         if (opts.init != null) {
             try {
-                fwkConf.put("stamina.bootstrap.init", opts.init.getCanonicalPath());
+                provisioningProperties.put("stamina.bootstrap.init.txt", opts.init.getCanonicalPath());
             } catch (IOException e) {
                 logger.log(LogService.LOG_ERROR,
                         "Failed to read init configuration directory: " + opts.init, e);
@@ -229,7 +236,7 @@ public class Main {
 
         try {
             logger.log(LogService.LOG_INFO, "Reading bootstrap package");
-            final ProvisioningService ps = new BootstrapProvisioningService(localBootstrapPackage);
+            final ProvisioningService ps = new BootstrapProvisioningService(localBootstrapPackage, provisioningProperties);
             ctx.registerService(ProvisioningService.class, ps, null);
 
             final boolean installAgent = ctx.getBundle("bootstrap:agent") == null;
