@@ -42,20 +42,22 @@ public class Main {
     private static final String DEFAULT_BOOTSTRAP_PACKAGE = "http://repo.staminaframework.io/releases/bootstrap.pkg";
     private static Framework fwk;
 
-    @CommandLine.Command(name = "io.staminaframework.bootstrap", showDefaultValues = true,
+    @CommandLine.Command(name = "io.staminaframework.bootstrap",
             description = "Bootstrap a Stamina Framework platform.")
     private static class Options {
-        @CommandLine.Option(names = {"-i", "--init"}, usageHelp = true, description = "Initialize platform from a configuration directory")
+        @CommandLine.Option(names = {"--cache"}, description = "Set cache directory")
+        public File cache = new File("cache");
+        @CommandLine.Option(names = {"-i", "--init"}, description = "Initialize platform from a configuration directory")
         public File init;
-        @CommandLine.Option(names = {"-f", "--from"}, usageHelp = true, description = "Set URL to bootstrap package")
+        @CommandLine.Option(names = {"-f", "--from"}, description = "Set URL to bootstrap package")
         public String from = DEFAULT_BOOTSTRAP_PACKAGE;
         @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "Show command usage")
         public boolean showHelp;
-        @CommandLine.Option(names = {"-c", "--clean"}, usageHelp = true, description = "Start platform from scratch")
+        @CommandLine.Option(names = {"-c", "--clean"}, description = "Start platform from scratch")
         public boolean clean;
-        @CommandLine.Option(names = {"-d", "--debug"}, usageHelp = true, description = "Enable verbose debugging")
+        @CommandLine.Option(names = {"-v", "--verbose"}, description = "Enable verbose output")
         public boolean debug;
-        @CommandLine.Parameters(description = "Runtime arguments", paramLabel = "<arguments>")
+        @CommandLine.Parameters(description = "Runtime arguments", paramLabel = "-- <arguments>")
         public String[] arguments;
     }
 
@@ -116,7 +118,16 @@ public class Main {
         }
 
         final Path homeDir = FileSystems.getDefault().getPath(System.getProperty("user.dir"));
-        final Path cacheDir = homeDir.resolve("cache");
+        final Path cacheDir;
+        try {
+            cacheDir = opts.cache != null
+                    ? opts.cache.getCanonicalFile().toPath() : homeDir.resolve("cache");
+        } catch (IOException e) {
+            logger.log(LogService.LOG_ERROR,
+                    "Failed to read cache directory", e);
+            System.exit(1);
+            return;
+        }
         if (opts.clean) {
             logger.log(LogService.LOG_INFO, "Cleaning cache");
             try {
